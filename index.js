@@ -17,25 +17,43 @@ module.exports = class HeaderSSOAdapter extends Base {
             return null
         }
 
-        const header = this.config.header || 'X-User'
+        const emailheadername = this.config.emailheader || 'Remote-Email'
+        const usernameheadername = this.config.usernameheader || 'Remote-Username'
+        const keyheadername = this.config.keyheader || 'Remote-Key'
 
-        return request.headers[header.toLowerCase()]
+        if(request.headers[keyheadername.toLowerCase()] !== this.config.key){
+            return null
+        }
+
+        return {
+            email: request.headers[emailheadername.toLowerCase()],
+            username: request.headers[usernameheadername.toLowerCase()]
+        }
     }
 
     async getIdentityFromCredentials(credentials) {
-        let email = credentials
-
-        if (typeof this.config.jsonpath !== 'undefined') {
-            email = jp.value(JSON.parse(credentials), this.config.jsonpath)
-        }
-
-        return email.toLowerCase()
+        return credentials
     }
 
-    async getUserForIdentity(email) {
-        return await User.findOne({
+    async getUserForIdentity(identity) {
+        const { email, name } = identity;
+        let user = await User.findOne({
             email,
             status: 'active'
         })
+        if(!user){
+            try {
+                await User.add(
+                    {
+                        email,
+                        name
+                    },
+                    {}
+                );
+                console.log('Admin SSO user added successfully.');
+            } catch (err) {
+                console.error('Error adding admin SSO user:', err);
+            }
+        }
     }
 }
